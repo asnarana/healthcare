@@ -1,0 +1,151 @@
+<!-- ============================================================================
+     DASHBOARD INDEX - Landing Page
+     ============================================================================
+     Simple form to enter ZIP code and view health data dashboard
+     ============================================================================ -->
+
+<div class="px-4 py-8">
+  <div class="max-w-2xl mx-auto">
+    <h1 class="text-4xl font-bold text-gray-900 mb-4 text-center">
+      Health Radar
+    </h1>
+    <p class="text-xl text-gray-600 mb-8 text-center">
+      Monitor health data for your area
+    </p>
+
+    <!-- Search Form - ZIP Code or Coordinates -->
+    <div class="bg-white shadow-md rounded-lg p-8">
+      <!-- Tabs for ZIP vs Coordinates -->
+      <div class="mb-4 border-b border-gray-200">
+        <div class="flex gap-2">
+          <button
+            type="button"
+            id="tab-zip"
+            onclick="switchTab('zip')"
+            class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600"
+          >
+            Search by ZIP Code
+          </button>
+          <button
+            type="button"
+            id="tab-coords"
+            onclick="switchTab('coords')"
+            class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+          >
+            Search by Coordinates
+          </button>
+        </div>
+      </div>
+
+      <!-- ZIP Code Form -->
+      <form id="zip-form" action="<%= dashboard_path('00000') %>" method="get" onsubmit="event.preventDefault(); const zip = document.getElementById('zip_input').value; if(zip.match(/^\d{5}$/)) { window.location.href = '<%= dashboard_path('') %>' + zip; } else { alert('Please enter a valid 5-digit ZIP code'); }">
+        <label for="zip_input" class="block text-sm font-medium text-gray-700 mb-2">
+          Enter ZIP Code
+        </label>
+        <div class="flex gap-4">
+          <input
+            type="text"
+            id="zip_input"
+            name="zip"
+            pattern="\d{5}"
+            maxlength="5"
+            placeholder="12345"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          />
+          <button
+            type="submit"
+            class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            View Dashboard
+          </button>
+        </div>
+        <p class="mt-2 text-sm text-gray-500">
+          Enter a 5-digit ZIP code to view health data for that area
+        </p>
+      </form>
+
+      <!-- Coordinates Form -->
+      <form id="coords-form" action="<%= dashboard_path('search') %>" method="get" style="display: none;" onsubmit="event.preventDefault(); const lat = parseFloat(document.getElementById('lat_input').value); const lon = parseFloat(document.getElementById('lon_input').value); if(!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) { window.location.href = '<%= dashboard_path('search') %>?lat=' + lat + '&lon=' + lon; } else { alert('Please enter valid coordinates. Latitude: -90 to 90, Longitude: -180 to 180'); }">
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label for="lat_input" class="block text-sm font-medium text-gray-700 mb-2">
+              Latitude
+            </label>
+            <input
+              type="number"
+              id="lat_input"
+              name="lat"
+              step="any"
+              min="-90"
+              max="90"
+              placeholder="40.7128"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label for="lon_input" class="block text-sm font-medium text-gray-700 mb-2">
+              Longitude
+            </label>
+            <input
+              type="number"
+              id="lon_input"
+              name="lon"
+              step="any"
+              min="-180"
+              max="180"
+              placeholder="-74.0060"
+              class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <div class="flex gap-4">
+          <button
+            type="submit"
+            class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            View Dashboard
+          </button>
+        </div>
+        <p class="mt-2 text-sm text-gray-500">
+          Enter latitude and longitude to view health data for that location (searches within 10km radius)
+        </p>
+        <p class="mt-1 text-xs text-gray-400">
+          Example: New York City = 40.7128, -74.0060
+        </p>
+      </form>
+    </div>
+
+    <script>
+      function switchTab(tab) {
+        const zipForm = document.getElementById('zip-form');
+        const coordsForm = document.getElementById('coords-form');
+        const zipTab = document.getElementById('tab-zip');
+        const coordsTab = document.getElementById('tab-coords');
+        
+        if (tab === 'zip') {
+          zipForm.style.display = 'block';
+          coordsForm.style.display = 'none';
+          zipTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600';
+          coordsTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700';
+        } else {
+          zipForm.style.display = 'none';
+          coordsForm.style.display = 'block';
+          zipTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700';
+          coordsTab.className = 'px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600';
+        }
+      }
+    </script>
+
+    <!-- Information Section -->
+    <div class="mt-8 bg-blue-50 rounded-lg p-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Data Sources</h2>
+      <ul class="space-y-2 text-gray-700">
+        <li>• <strong>Delphi FluView:</strong> Weekly influenza-like illness data</li>
+        <li>• <strong>Delphi Hospital Capacity:</strong> Daily hospital bed availability</li>
+        <li>• <strong>openFDA:</strong> Drug enforcement and recall data</li>
+        <li>• <strong>OpenAQ:</strong> Air quality measurements (PM2.5, O3)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+

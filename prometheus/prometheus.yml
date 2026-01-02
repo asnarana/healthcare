@@ -1,0 +1,34 @@
+# prometheus configuration
+# prometheus scrapes metrics from:
+# 1. rails app (ingestion job metrics)
+# 2. fastapi service (llm query metrics)
+
+global:
+  scrape_interval: 15s  # Scrape targets every 15 seconds
+  evaluation_interval: 15s  # Evaluate rules every 15 seconds
+  external_labels:
+    monitor: 'health-radar'
+
+# Scrape configurations
+scrape_configs:
+  # rails app metrics
+  # rails app exposes prometheus metrics for ingestion jobs
+  # metrics include: ingestion duration, records processed, errors
+  - job_name: 'rails'
+    static_configs:
+      - targets: ['rails:3000']
+    metrics_path: '/metrics'  # Rails app should expose /metrics endpoint
+
+  # fastapi llm service metrics
+  # fastapi service exposes prometheus metrics for llm queries
+  # metrics include: query duration, query count, errors
+  - job_name: 'fastapi'
+    static_configs:
+      - targets: ['fastapi:8000']
+    metrics_path: '/metrics'
+
+  # prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+

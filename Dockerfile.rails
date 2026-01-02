@@ -1,0 +1,38 @@
+FROM ruby:3.2
+
+# Install system dependencies including Oracle Instant Client
+RUN apt-get update -qq && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Oracle Instant Client (required for oracle-enhanced gem)
+RUN mkdir -p /opt/oracle && \
+    cd /opt/oracle && \
+    curl -o instantclient-basiclite.zip https://download.oracle.com/otn_software/linux/instantclient/instantclient-basiclite-linux.x64-21.1.0.0.0.zip && \
+    unzip instantclient-basiclite.zip && \
+    rm instantclient-basiclite.zip && \
+    cd instantclient_21_1 && \
+    rm -f *jdbc* *occi* *mysql* *README *jar uidrvci genezi adrci && \
+    echo /opt/oracle/instantclient_21_1 > /etc/ld.so.conf.d/oracle-instantclient.conf && \
+    ldconfig
+
+ENV LD_LIBRARY_PATH=/opt/oracle/instantclient_21_1:$LD_LIBRARY_PATH
+ENV ORACLE_HOME=/opt/oracle/instantclient_21_1
+
+WORKDIR /app
+
+# Copy Gemfiles
+COPY Gemfile Gemfile.lock ./
+
+# Install gems
+RUN bundle install
+
+# Copy application
+COPY . .
+
+# Expose port
+EXPOSE 3000
+

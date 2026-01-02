@@ -1,0 +1,154 @@
+# this file tells docker how to run all the services (databases, web apps, etc)
+# when you run "docker-compose up", it starts all these services
+services:
+  # service 1: oracle database - this is where we store all the health data
+  oracle:
+    image: gvenzl/oracle-free:latest  # use the free oracle database image
+    container_name: healthsignal_oracle  # name of the container
+    environment:
+      ORACLE_PASSWORD: healthsignal123  # database password
+      ORACLE_DATABASE: HEALTHSIGNAL  # name of the database
+    ports:
+      - "1521:1521"  # expose port 1521 so rails can connect to oracle
+    volumes:
+      - oracle_data:/opt/oracle/oradata  # save database data so it persists when container restarts
+    healthcheck:
+      # check if oracle is ready before other services try to connect
+      test: ["CMD-SHELL", "sqlplus -S sys/healthsignal123@localhost:1521/HEALTHSIGNAL as sysdba <<< 'SELECT 1 FROM DUAL;' || exit 1"]
+      interval: 30s  # check every 30 seconds
+      timeout: 10s  # wait 10 seconds for response
+      retries: 5  # try 5 times before giving up
+
+  # service 2: redis - used by sidekiq to manage background jobs (like a job queue)
+  redis:
+    image: redis:7-alpine  # use redis version 7 (alpine is a small linux version)
+    container_name: healthsignal_redis  # name of the container
+    ports:
+      - "6379:6379"  # expose port 6379 so sidekiq can connect
+    volumes:
+      - redis_data:/data  # save redis data so it persists
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]  # check if redis is responding
+      interval: 10s  # check every 10 seconds
+      timeout: 3s  # wait 3 seconds for response
+      retries: 3  # try 3 times before giving up
+
+  # service 3: rails web application - this is the main website you see in browser
+  rails:
+    build:
+      context: .  # build from current directory
+      dockerfile: Dockerfile.rails  # use this dockerfile to build the image
+    container_name: healthsignal_rails  # name of the container
+    command: bash -c "rm -f tmp/pids/server.pid && bundle exec rails s -b 0.0.0.0"  # start the rails web server
+    ports:
+      - "3000:3000"  # expose port 3000 so you can access website at http://localhost:3000
+    environment:
+      DATABASE_URL: oracle-enhanced://system:healthsignal123@oracle:1521/HEALTHSIGNAL  # connection string to oracle database
+      REDIS_URL: redis://redis:6379/0  # connection string to redis
+      RAILS_ENV: development  # run in development mode
+    volumes:
+      - .:/app  # mount current directory so code changes are reflected immediately
+      - rails_bundle:/usr/local/bundle  # save installed gems so we don't reinstall every time
+    depends_on:
+      oracle:
+        condition: service_healthy  # wait for oracle to be ready before starting
+      redis:
+        condition: service_healthy  # wait for redis to be ready before starting
+    links:
+      - oracle  # allow rails to connect to oracle by name
+      - redis  # allow rails to connect to redis by name
+
+  # service 4: sidekiq - this runs background jobs to fetch data from apis
+  sidekiq:
+    build:
+      context: .  # build from current directory
+      dockerfile: Dockerfile.rails  # use same dockerfile as rails (same codebase)
+    container_name: healthsignal_sidekiq  # name of the container
+    command: bundle exec sidekiq -C config/sidekiq.yml  # start sidekiq worker to process background jobs
+    environment:
+      DATABASE_URL: oracle-enhanced://system:healthsignal123@oracle:1521/HEALTHSIGNAL  # connection to oracle
+      REDIS_URL: redis://redis:6379/0  # connection to redis (sidekiq uses redis for job queue)
+      RAILS_ENV: development  # run in development mode
+      OPENAQ_API_KEY: ${OPENAQ_API_KEY:-}  # get openaq api key from .env file
+    volumes:
+      - .:/app  # mount current directory
+      - rails_bundle:/usr/local/bundle  # save installed gems
+    depends_on:
+      oracle:
+        condition: service_healthy  # wait for oracle
+      redis:
+        condition: service_healthy  # wait for redis
+    links:
+      - oracle  # allow sidekiq to connect to oracle
+      - redis  # allow sidekiq to connect to redis
+
+  # service 5: fastapi - this is the llm (ai chat) service that answers questions about health data
+  fastapi:
+    build:
+      context: ./fastapi_service  # build from fastapi_service directory
+      dockerfile: Dockerfile  # use dockerfile in that directory
+    container_name: healthsignal_fastapi  # name of the container
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload  # start fastapi web server
+    ports:
+      - "8000:8000"  # expose port 8000 so rails can call this service
+    environment:
+      DATABASE_URL: oracle-enhanced://system:healthsignal123@oracle:1521/HEALTHSIGNAL  # connection to oracle
+      OLLAMA_BASE_URL: http://ollama:11434  # where to find ollama llm service
+      RAILS_API_URL: http://rails:3000  # where to find rails app
+    volumes:
+      - ./fastapi_service:/app  # mount fastapi code so changes are reflected
+    depends_on:
+      - ollama  # wait for ollama to start
+      - oracle  # wait for oracle to start
+
+  # service 6: ollama - this runs the ai language model locally (free, no api costs)
+  ollama:
+    image: ollama/ollama:latest  # use ollama image
+    container_name: healthsignal_ollama  # name of the container
+    ports:
+      - "11434:11434"  # expose port 11434 so fastapi can connect
+    volumes:
+      - ollama_data:/root/.ollama  # save downloaded ai models so we don't re-download
+    # note: first time you run this, it will download the ai model (llama2) which can take 10-20 minutes
+
+  # service 7: prometheus - collects metrics about how well our system is running
+  prometheus:
+    image: prom/prometheus:latest  # use prometheus image
+    container_name: healthsignal_prometheus  # name of the container
+    ports:
+      - "9090:9090"  # expose port 9090 so you can view metrics at http://localhost:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml  # use our prometheus config file
+      - prometheus_data:/prometheus  # save metrics data
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'  # use our config file
+      - '--storage.tsdb.path=/prometheus'  # where to store metrics
+    depends_on:
+      - rails  # wait for rails to start
+      - fastapi  # wait for fastapi to start
+
+  # service 8: grafana - creates pretty charts and dashboards from prometheus metrics
+  grafana:
+    image: grafana/grafana:latest  # use grafana image
+    container_name: healthsignal_grafana  # name of the container
+    ports:
+      - "3001:3000"  # expose port 3001 (mapped to 3000 inside container) so you can view at http://localhost:3001
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin  # default password is 'admin'
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource  # install some plugins
+    volumes:
+      - grafana_data:/var/lib/grafana  # save grafana settings
+      - ./grafana/provisioning:/etc/grafana/provisioning  # auto-configure data sources
+      - ./grafana/dashboards:/var/lib/grafana/dashboards  # load our dashboard files
+    depends_on:
+      - prometheus  # wait for prometheus to start
+
+# these are persistent storage volumes - data saved here survives container restarts
+volumes:
+  oracle_data:  # stores oracle database files
+  redis_data:  # stores redis data
+  rails_bundle:  # stores installed ruby gems
+  ollama_data:  # stores downloaded ai models
+  prometheus_data:  # stores collected metrics
+  grafana_data:  # stores grafana dashboards and settings
+

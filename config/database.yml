@@ -1,0 +1,17 @@
+default: &default
+  adapter: oracle_enhanced
+  username: system
+  password: healthsignal123
+  database: HEALTHSIGNAL
+  host: <%= ENV.fetch("ORACLE_HOST", "oracle") %>
+  port: <%= ENV.fetch("ORACLE_PORT", "1521") %>
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+
+production:
+  <<: *default
+

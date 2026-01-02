@@ -1,0 +1,479 @@
+<!-- ============================================================================
+     DASHBOARD SHOW - Health Data Dashboard for ZIP Code
+     ============================================================================
+     Displays charts and map using MapLibre for health data visualization
+     ============================================================================ -->
+
+<div class="px-4 py-6">
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="flex justify-between items-center mb-4">
+      <h1 class="text-3xl font-bold text-gray-900">
+        <% if @latitude.present? && @longitude.present? %>
+          Health Dashboard for Location: <%= @latitude.round(4) %>, <%= @longitude.round(4) %>
+          <% if @zip_code.present? %>
+            <span class="text-lg font-normal text-gray-600">(ZIP: <%= @zip_code %>)</span>
+          <% end %>
+        <% else %>
+          Health Dashboard for ZIP Code: <%= @zip_code %>
+        <% end %>
+      </h1>
+      <%= link_to "← Back to Home", root_path, class: "text-blue-600 hover:text-blue-800" %>
+    </div>
+    
+    <!-- Time Range and Region Selectors -->
+    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+      <h3 class="text-sm font-semibold text-gray-700 mb-3">Time Range Selectors</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div>
+          <label for="weeks-select" class="block text-sm font-medium text-gray-700 mb-2">
+            Flu Data (Weeks):
+          </label>
+          <select 
+            id="weeks-select" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+            onchange="updateUrl('weeks', this.value)"
+          >
+            <option value="4" <%= 'selected' if @weeks == 4 %>>4 Weeks (28 Days)</option>
+            <option value="8" <%= 'selected' if @weeks == 8 %>>8 Weeks (56 Days)</option>
+            <option value="12" <%= 'selected' if @weeks == 12 %>>12 Weeks (84 Days)</option>
+            <option value="16" <%= 'selected' if @weeks == 16 %>>16 Weeks (112 Days)</option>
+            <option value="24" <%= 'selected' if @weeks == 24 %>>24 Weeks (168 Days)</option>
+            <option value="52" <%= 'selected' if @weeks == 52 %>>52 Weeks (364 Days)</option>
+          </select>
+        </div>
+        
+        <div>
+          <label for="hospital-days-select" class="block text-sm font-medium text-gray-700 mb-2">
+            Hospital Data (Days):
+          </label>
+          <select 
+            id="hospital-days-select" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+            onchange="updateUrl('hospital_days', this.value)"
+          >
+            <option value="7" <%= 'selected' if @hospital_days == 7 %>>7 Days</option>
+            <option value="14" <%= 'selected' if @hospital_days == 14 %>>14 Days</option>
+            <option value="30" <%= 'selected' if @hospital_days == 30 %>>30 Days</option>
+            <option value="60" <%= 'selected' if @hospital_days == 60 %>>60 Days</option>
+            <option value="90" <%= 'selected' if @hospital_days == 90 %>>90 Days</option>
+            <option value="180" <%= 'selected' if @hospital_days == 180 %>>180 Days</option>
+          </select>
+        </div>
+        
+        <div>
+          <label for="fda-days-select" class="block text-sm font-medium text-gray-700 mb-2">
+            FDA Recalls (Days):
+          </label>
+          <select 
+            id="fda-days-select" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+            onchange="updateUrl('fda_days', this.value)"
+          >
+            <option value="7" <%= 'selected' if @fda_days == 7 %>>7 Days</option>
+            <option value="14" <%= 'selected' if @fda_days == 14 %>>14 Days</option>
+            <option value="30" <%= 'selected' if @fda_days == 30 %>>30 Days</option>
+            <option value="60" <%= 'selected' if @fda_days == 60 %>>60 Days</option>
+            <option value="90" <%= 'selected' if @fda_days == 90 %>>90 Days</option>
+            <option value="180" <%= 'selected' if @fda_days == 180 %>>180 Days</option>
+          </select>
+        </div>
+        
+        <div>
+          <label for="openaq-days-select" class="block text-sm font-medium text-gray-700 mb-2">
+            Air Quality (Days):
+          </label>
+          <select 
+            id="openaq-days-select" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+            onchange="updateUrl('openaq_days', this.value)"
+          >
+            <option value="7" <%= 'selected' if @openaq_days == 7 %>>7 Days</option>
+            <option value="14" <%= 'selected' if @openaq_days == 14 %>>14 Days</option>
+            <option value="30" <%= 'selected' if @openaq_days == 30 %>>30 Days</option>
+            <option value="60" <%= 'selected' if @openaq_days == 60 %>>60 Days</option>
+            <option value="90" <%= 'selected' if @openaq_days == 90 %>>90 Days</option>
+            <option value="180" <%= 'selected' if @openaq_days == 180 %>>180 Days</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- Location/Region Filters -->
+      <div class="mt-4 pt-4 border-t border-gray-300">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Location & Region Filters</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Location-based filters (OpenAQ, Hospital) -->
+          <div class="bg-blue-50 p-3 rounded-md">
+            <h4 class="text-xs font-semibold text-gray-700 mb-2">Location-Based Data</h4>
+            <p class="text-xs text-gray-600 mb-2">
+              <strong>Air Quality & Hospital:</strong> 
+              <% if @latitude.present? && @longitude.present? %>
+                Using coordinates: <%= @latitude.round(4) %>, <%= @longitude.round(4) %> (10km radius)
+              <% else %>
+                Using ZIP code: <%= @zip_code %>
+              <% end %>
+            </p>
+            <p class="text-xs text-gray-500">
+              To change location, go back to home page and search again
+            </p>
+          </div>
+          
+          <!-- Region-based filters (Flu, FDA) -->
+          <div>
+            <label for="flu-region-select" class="block text-sm font-medium text-gray-700 mb-2">
+              Flu Data Region:
+            </label>
+            <select 
+              id="flu-region-select" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+              onchange="updateUrl('flu_region', this.value)"
+            >
+              <option value="nat" <%= 'selected' if @flu_region == 'nat' %>>National (All USA)</option>
+              <% if @zip_code.present? || (@latitude.present? && @longitude.present?) %>
+                <option value="auto" <%= 'selected' if @flu_region == 'auto' || (@flu_region != 'nat' && @flu_region.length == 2) %>>Auto-Detect State</option>
+              <% end %>
+              <% @available_flu_regions.reject { |r| r == 'nat' }.each do |region| %>
+                <option value="<%= region %>" <%= 'selected' if @flu_region == region %>>
+                  <%= region.upcase %> (State)
+                </option>
+              <% end %>
+            </select>
+            <p class="mt-1 text-xs text-gray-500">
+              <% if @flu_region == 'auto' || (@flu_region != 'nat' && @flu_region.length == 2) %>
+                Currently showing: <%= @flu_region.upcase %> state data
+              <% else %>
+                Select national or state-level flu data
+              <% end %>
+            </p>
+          </div>
+        </div>
+        
+        <div class="mt-4">
+          <label for="fda-state-select" class="block text-sm font-medium text-gray-700 mb-2">
+            FDA Recalls State Filter:
+          </label>
+          <select 
+            id="fda-state-select" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+            onchange="updateUrl('fda_state', this.value)"
+          >
+            <option value="">All States (National)</option>
+            <% @available_fda_states.each do |state| %>
+              <option value="<%= state %>" <%= 'selected' if @fda_state == state %>>
+                <%= state %> Only
+              </option>
+            <% end %>
+          </select>
+          <p class="mt-1 text-xs text-gray-500">
+            <% if @fda_state.present? %>
+              Showing recalls for: <%= @fda_state %> only
+            <% else %>
+              Showing all recalls nationwide (leave blank for all states)
+            <% end %>
+          </p>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      // helper function to update url with all parameters
+      // preserves zip code, coordinates, and all filter parameters
+      function updateUrl(param, value) {
+        const url = new URL(window.location);
+        url.searchParams.set(param, value);
+        
+        // preserve coordinates if they exist (for coordinate-based searches)
+        <% if @latitude.present? && @longitude.present? %>
+        // if using coordinates, make sure we're on the search route
+        if (!url.pathname.includes('/search')) {
+          url.pathname = '/dashboard/search';
+        }
+        url.searchParams.set('lat', '<%= @latitude %>');
+        url.searchParams.set('lon', '<%= @longitude %>');
+        <% end %>
+        // preserve all other parameters
+        const weeks = document.getElementById('weeks-select')?.value || '12';
+        const hospitalDays = document.getElementById('hospital-days-select')?.value || '30';
+        const fdaDays = document.getElementById('fda-days-select')?.value || '30';
+        const openaqDays = document.getElementById('openaq-days-select')?.value || '30';
+        const fluRegion = document.getElementById('flu-region-select')?.value || 'nat';
+        const fdaState = document.getElementById('fda-state-select')?.value || '';
+        
+        url.searchParams.set('weeks', weeks);
+        url.searchParams.set('hospital_days', hospitalDays);
+        url.searchParams.set('fda_days', fdaDays);
+        url.searchParams.set('openaq_days', openaqDays);
+        url.searchParams.set('flu_region', fluRegion);
+        if (fdaState) {
+          url.searchParams.set('fda_state', fdaState);
+        } else {
+          url.searchParams.delete('fda_state');
+        }
+        
+        window.location.href = url.toString();
+      }
+    </script>
+  </div>
+
+  <!-- Charts Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Air Quality Chart (PM2.5 and O3) -->
+    <div class="bg-white shadow-md rounded-lg p-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Air Quality (Last <%= @openaq_days %> Days)</h2>
+      <canvas id="airQualityChart" width="400" height="200"></canvas>
+    </div>
+
+    <!-- Hospital Capacity Chart -->
+    <div class="bg-white shadow-md rounded-lg p-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Hospital Capacity (Last <%= @hospital_days %> Days)</h2>
+      <canvas id="hospitalChart" width="400" height="200"></canvas>
+    </div>
+
+    <!-- Flu Data Chart -->
+    <div class="bg-white shadow-md rounded-lg p-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">
+        Influenza Activity (Last <%= @weeks %> Weeks)
+        <% if @flu_region != 'nat' %>
+          <span class="text-sm font-normal text-gray-600">- Region: <%= @flu_region.upcase %></span>
+        <% else %>
+          <span class="text-sm font-normal text-gray-600">- National</span>
+        <% end %>
+      </h2>
+      <canvas id="fluChart" width="400" height="200"></canvas>
+    </div>
+
+    <!-- FDA Enforcement Chart -->
+    <div class="bg-white shadow-md rounded-lg p-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">
+        FDA Recalls (Last <%= @fda_days %> Days)
+        <% if @fda_state.present? %>
+          <span class="text-sm font-normal text-gray-600">- State: <%= @fda_state %></span>
+        <% else %>
+          <span class="text-sm font-normal text-gray-600">- All States</span>
+        <% end %>
+      </h2>
+      <canvas id="fdaChart" width="400" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Map Section -->
+  <div class="bg-white shadow-md rounded-lg p-6 mb-6">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">Health Facilities Map</h2>
+    <div id="map" style="width: 100%; height: 500px;" class="rounded-lg"></div>
+  </div>
+
+  <!-- Chat Section -->
+  <div class="bg-white shadow-md rounded-lg p-6">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">Ask Questions About Health Data</h2>
+    <div id="chat-container">
+      <div id="chat-messages" class="mb-4 p-4 bg-gray-50 rounded-lg h-64 overflow-y-auto">
+        <p class="text-gray-600 text-sm">Ask questions about health data for this ZIP code...</p>
+      </div>
+      <div class="flex gap-2">
+        <input
+          type="text"
+          id="chat-input"
+          placeholder="e.g., What's the air quality trend for this area?"
+          class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+        />
+        <button
+          id="chat-send"
+          class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ============================================================================
+  // CHART INITIALIZATION
+  // ============================================================================
+  // Initialize Chart.js charts with data from Rails controller
+  // ============================================================================
+
+  // Air Quality Chart
+  const airQualityCtx = document.getElementById('airQualityChart').getContext('2d');
+  const airQualityLabels = <%= raw (@air_quality_data.keys.map { |d| d.strftime('%m/%d') } rescue []).to_json %>;
+  const airQualityData = {
+    labels: airQualityLabels,
+    datasets: [
+      {
+        label: 'PM2.5 (µg/m³)',
+        data: <%= raw (@air_quality_data.values.map { |v| v[:pm25_value] || 0 } rescue []).to_json %>,
+        borderColor: 'rgb(239, 68, 68)',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        tension: 0.1
+      },
+      {
+        label: 'O3 (ppm)',
+        data: <%= raw (@air_quality_data.values.map { |v| v[:o3_value] || 0 } rescue []).to_json %>,
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.1
+      }
+    ]
+  };
+  new Chart(airQualityCtx, {
+    type: 'line',
+    data: airQualityData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // Hospital Capacity Chart
+  const hospitalCtx = document.getElementById('hospitalChart').getContext('2d');
+  const hospitalData = {
+    labels: <%= raw (@hospital_data.map { |h| h.collection_date.strftime('%m/%d') } rescue []).to_json %>,
+    datasets: [
+      {
+        label: 'Total Beds',
+        data: <%= raw (@hospital_data.map { |h| h.total_beds || 0 } rescue []).to_json %>,
+        backgroundColor: 'rgba(34, 197, 94, 0.5)'
+      },
+      {
+        label: 'Occupied Beds',
+        data: <%= raw (@hospital_data.map { |h| h.occupied_beds || 0 } rescue []).to_json %>,
+        backgroundColor: 'rgba(239, 68, 68, 0.5)'
+      }
+    ]
+  };
+  new Chart(hospitalCtx, {
+    type: 'bar',
+    data: hospitalData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // Flu Chart
+  const fluCtx = document.getElementById('fluChart').getContext('2d');
+  const fluData = {
+    labels: <%= raw (@flu_data.map { |f| f.epiweek_start.strftime('%m/%d') } rescue []).to_json %>,
+    datasets: [{
+      label: 'Weighted ILI (%)',
+      data: <%= raw (@flu_data.map { |f| f.wili || 0 } rescue []).to_json %>,
+      borderColor: 'rgb(168, 85, 247)',
+      backgroundColor: 'rgba(168, 85, 247, 0.1)',
+      tension: 0.1
+    }]
+  };
+  new Chart(fluCtx, {
+    type: 'line',
+    data: fluData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // FDA Chart
+  const fdaCtx = document.getElementById('fdaChart').getContext('2d');
+  const fdaCounts = <%= raw ((@fda_data.group_by { |f| f.report_date }.transform_values(&:count) rescue {})).to_json %>;
+  const fdaData = {
+    labels: Object.keys(fdaCounts).map(d => new Date(d).toLocaleDateString()),
+    datasets: [{
+      label: 'Recalls per Day',
+      data: Object.values(fdaCounts),
+      backgroundColor: 'rgba(245, 158, 11, 0.5)'
+    }]
+  };
+  new Chart(fdaCtx, {
+    type: 'bar',
+    data: fdaData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // ============================================================================
+  // MAPLIBRE MAP INITIALIZATION
+  // ============================================================================
+  // Initialize MapLibre map showing health facilities
+  // ============================================================================
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    center: <%= raw @map_center.to_json %>, // [longitude, latitude]
+    zoom: 10
+  });
+
+  map.addControl(new maplibregl.NavigationControl());
+
+  // Add markers for hospitals (if available)
+  <% @hospital_markers.each do |hospital| %>
+    new maplibregl.Marker({ color: '#3B82F6' })
+      .setLngLat([<%= @map_center[0] %>, <%= @map_center[1] %>]) // Simplified - in production use actual coordinates
+      .setPopup(new maplibregl.Popup().setHTML('<strong>Hospital</strong><br>Beds: <%= hospital.total_beds || 'N/A' %>'))
+      .addTo(map);
+  <% end %>
+
+  // ============================================================================
+  // CHAT FUNCTIONALITY
+  // ============================================================================
+  // Handle chat queries to FastAPI LLM service
+  // ============================================================================
+  const chatInput = document.getElementById('chat-input');
+  const chatSend = document.getElementById('chat-send');
+  const chatMessages = document.getElementById('chat-messages');
+
+  function addMessage(text, isUser = false) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `mb-2 p-2 rounded ${isUser ? 'bg-blue-100 ml-8' : 'bg-white mr-8'}`;
+    messageDiv.textContent = text;
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  chatSend.addEventListener('click', async () => {
+    const query = chatInput.value.trim();
+    if (!query) return;
+
+    addMessage(query, true);
+    chatInput.value = '';
+
+    try {
+      const response = await fetch('/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+          query: query,
+          zip_code: '<%= @zip_code %>'
+        })
+      });
+
+      const data = await response.json();
+      addMessage(data.response || data.error || 'No response received');
+    } catch (error) {
+      addMessage('Error: ' + error.message);
+    }
+  });
+
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      chatSend.click();
+    }
+  });
+</script>
+
