@@ -1,13 +1,13 @@
 source 'https://rubygems.org'
 git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 
-ruby '3.2.0'
+ruby '>= 3.2.0', '< 3.3.0'
 
 # Rails framework
 gem 'rails', '~> 7.1.0'
 
 # Database adapter for Oracle
-gem 'activerecord-oracle_enhanced-adapter', '~> 8.0'
+gem 'activerecord-oracle_enhanced-adapter', '~> 7.0'
 
 # Background job processing
 gem 'sidekiq', '~> 7.0'
@@ -31,10 +31,13 @@ gem 'json'
 
 # Prometheus metrics
 gem 'prometheus-client', '~> 2.1'
-gem 'prometheus-client-mmap', '~> 0.11'
+gem 'prometheus-client-mmap', '~> 0.28'
 
 # Environment variables
 gem 'dotenv-rails'
+
+# Boot speed optimization
+gem 'bootsnap', '>= 1.4.4', require: false
 
 group :development, :test do
   gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]
@@ -44,4 +47,3 @@ group :development do
   gem 'web-console', '>= 4.1.0'
   gem 'listen', '~> 3.3'
 end
-

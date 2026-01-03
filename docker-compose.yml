@@ -39,7 +39,7 @@ services:
       context: .  # build from current directory
       dockerfile: Dockerfile.rails  # use this dockerfile to build the image
     container_name: healthsignal_rails  # name of the container
-    command: bash -c "rm -f tmp/pids/server.pid && bundle exec rails s -b 0.0.0.0"  # start the rails web server
+    command: bash -c "rm -f tmp/pids/server.pid && bundle exec puma -C config/puma.rb" # start the rails web server
     ports:
       - "3000:3000"  # expose port 3000 so you can access website at http://localhost:3000
     environment:
@@ -54,9 +54,6 @@ services:
         condition: service_healthy  # wait for oracle to be ready before starting
       redis:
         condition: service_healthy  # wait for redis to be ready before starting
-    links:
-      - oracle  # allow rails to connect to oracle by name
-      - redis  # allow rails to connect to redis by name
 
   # service 4: sidekiq - this runs background jobs to fetch data from apis
   sidekiq:
@@ -78,9 +75,6 @@ services:
         condition: service_healthy  # wait for oracle
       redis:
         condition: service_healthy  # wait for redis
-    links:
-      - oracle  # allow sidekiq to connect to oracle
-      - redis  # allow sidekiq to connect to redis
 
   # service 5: fastapi - this is the llm (ai chat) service that answers questions about health data
   fastapi:

@@ -30,9 +30,14 @@ COPY Gemfile Gemfile.lock ./
 # Install gems
 RUN bundle install
 
+# Add entrypoint to ensure gems are installed when bundle volume is empty
+COPY docker/entrypoint.sh /usr/bin/entrypoint
+RUN chmod +x /usr/bin/entrypoint
+
 # Copy application
 COPY . .
 
 # Expose port
 EXPOSE 3000
 
+ENTRYPOINT ["/usr/bin/entrypoint"]
